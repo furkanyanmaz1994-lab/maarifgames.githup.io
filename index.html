@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sorumluluk Zinciri: Toplumsal Uyum Oyunu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/tone"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        canvas {
+            border: 4px solid #4B88C7;
+            display: block;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #A3D4EB;
+            transition: background-color 1s ease-in-out;
+        }
+        #dialog-overlay, #start-screen, #end-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+        .vibrant-bg {
+            background-color: #A3D4EB;
+        }
+        .decayed-bg {
+            background-color: #7a8c99;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        #start-button {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="game-container" class="relative">
+        <!-- Responsibility Chain UI at the top -->
+        <div id="responsibility-chain" class="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2 z-20 bg-white p-2 rounded-full shadow-lg"></div>
+        <button id="pause-button" class="absolute top-4 right-4 z-20 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg shadow-md hover:bg-gray-300 transition-colors duration-300">Duraklat</button>
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="rounded-lg">
+            <div class="absolute top-4 right-4 z-30">
+                <select id="language-selector" class="bg-gray-200 text-gray-800 p-2 rounded-lg text-sm">
+                    <option value="tr">Türkçe</option>
+                    <option value="en">English</option>
+                    <option value="fr">Français</option>
+                    <option value="es">Español</option>
+                    <option value="ar">العربية</option>
+                    <option value="ky">Кыргызча</option>
+                    <option value="az">Azərbaycanca</option>
+                    <option value="ps">پښتو</option>
+                    <option value="ru">Русский</option>
+                    <option value="bs">Bosanski</option>
+                    <option value="ka">ქართული</option>
+                    <option value="sq">Shqip</option>
+                    <option value="hu">Magyar</option>
+                </select>
+            </div>
+            <div class="bg-white p-12 rounded-lg shadow-xl text-center max-w-2xl mx-auto my-auto flex flex-col items-center">
+                <h1 class="text-5xl md:text-6xl font-black text-[#FF4E50] mb-2" id="main-title">Sorumluluk Zinciri</h1>
+                <p class="text-xl md:text-2xl text-gray-700 mb-6" id="main-subtitle">Toplumsal Uyum Oyunu</p>
+                
+                <h2 class="text-2xl md:text-3xl font-black text-[#4B88C7] mb-4" id="info-title">Bilgilendirme</h2>
+                
+                <div class="w-full text-left font-bold text-lg text-gray-700 mb-6">
+                    <p id="start-text" class="mb-2">Yön tuşlarını kullanarak ilerle, sorumluluk canavarlarıyla yüzleş ve kutulardan kaçarak büyü!</p>
+                    <p id="controls-text" class="mb-2">Yön Tuşları: Sol/Sağ hareket, Yukarı zıplama</p>
+                    <p id="growth-text" class="mb-2">Karakterin Büyümesi: 👑 Karakterin Küçülmesi: 💧</p>
+                </div>
+
+                <button id="start-button" class="bg-[#4B88C7] text-white font-bold py-4 px-8 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300 mt-10">Oyuna Başla</button>
+            </div>
+        </div>
+
+        <!-- Dialog Overlay -->
+        <div id="dialog-overlay" class="rounded-lg" style="display: none;">
+            <div id="dialog-box" class="bg-white p-6 md:p-8 rounded-lg shadow-xl text-center max-w-sm">
+                <h3 id="dialog-title" class="text-xl md:text-2xl font-bold text-[#FF4E50] mb-2">Sorumlulukla Yüzleş!</h3>
+                <p id="responsibility-text" class="text-lg text-gray-700 mb-6"></p>
+                <div class="flex flex-col md:flex-row gap-4 justify-center">
+                    <button id="accept-button" class="bg-[#4B88C7] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">Sorumluluğu Kabul Et</button>
+                    <button id="run-button" class="bg-[#FC913A] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-yellow-700 transition-colors duration-300">Sorumluluktan Kaç</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="rounded-lg" style="display: none;">
+            <div class="bg-white p-6 md:p-8 rounded-lg shadow-xl text-center max-w-sm">
+                <h2 id="end-title" class="text-3xl font-black mb-2"></h2>
+                <p id="end-message" class="text-lg text-gray-700"></p>
+                <button id="restart-button" class="mt-6 bg-[#4B88C7] text-white font-bold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300">Tekrar Oyna</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const startScreen = document.getElementById('start-screen');
+            const startButton = document.getElementById('start-button');
+            const dialogOverlay = document.getElementById('dialog-overlay');
+            const responsibilityText = document.getElementById('responsibility-text');
+            const acceptButton = document.getElementById('accept-button');
+            const runButton = document.getElementById('run-button');
+            const endScreen = document.getElementById('end-screen');
+            const endTitle = document.getElementById('end-title');
+            const endMessage = document.getElementById('end-message');
+            const restartButton = document.getElementById('restart-button');
+            const gameContainer = document.getElementById('game-container');
+            const responsibilityChainUI = document.getElementById('responsibility-chain');
+            const languageSelector = document.getElementById('language-selector');
+            const pauseButton = document.getElementById('pause-button');
+            const groundY = canvas.height - 50;
+
+            let gameState = {
+                isGameOver: false,
+                isDialogActive: false,
+                isPaused: false,
+                currentMonsterIndex: 0,
+                boxHitCount: 0,
+                gameSpeed: 1,
+                jumpModifier: 1,
+                responsibilitiesTaken: [],
+                scrollOffset: 0,
+                keys: {},
+                isSpawning: false,
+                backgroundState: 'vibrant'
+            };
+
+            let clouds = [];
+            let trees = [];
+            let flowers = [];
+            let obstacles = [];
+            let currentResponsibilities = [];
+
+            const texts = {
+                tr: {
+                    mainTitle: "Sorumluluk Zinciri", mainSubtitle: "Toplumsal Uyum Oyunu", infoTitle: "Bilgilendirme", startText: "Yön tuşlarını kullanarak ilerle, sorumluluk canavarlarıyla yüzleş ve kutulardan kaçarak büyü!", startBtn: "Oyuna Başla", dialogTitle: "Sorumlulukla Yüzleş!", acceptBtn: "Sorumluluğu Kabul Et", runBtn: "Sorumluluktan Kaç", endTitleWin: "OYUN BİTTİ: BÜYÜDÜN!", endMessageWin: "Tebrikler! Sorumluluklarını kabul ederek gelişim gösterdin.", endTitleLose: "OYUN BİTTİ: KÜÇÜLDÜN!", endMessageLose: "Sorumluluktan kaçmak seni küçülttü. Her zaman büyümek için bir şansın var!", endTitleTie: "OYUN BİTTİ!", endMessageTie: "Oyun bitti ve boyutunda bir değişiklik olmadı.", endTitleBoxes: "OYUN BİTTİ: KUTULARA ÇARPTIN!", endMessageBoxes: (count) => `Oyun ${count} kez kutulara çarptığın için bitti. Kutulara çarpma hakkın kalmadı!`, restartBtn: "Tekrar Oyna", controlsText: "Yön Tuşları: Sol/Sağ hareket, Yukarı zıplama", growthText: "Karakterin Büyümesi: 👑 Karakterin Küçülmesi: 💧", pauseBtn: "Duraklat", resumeBtn: "Devam Et", responsibilities: ["Derste zorlandığın bir konuyu fark ettiğinde, ek kaynaklar araştırıp notlarını güncellemelisin.", "Evde plastik atık biriktiğinde, onları toplayıp geri dönüşüm kutusuna koymalısın.", "Beslenme tercihlerini bilinçli hale getirerek sağlıklı seçimler yapacaksın, uzun vadeli enerjini koruyacaksın.", "Zaman yönetimini geliştirerek günlük rutinlerini planlayacaksın, böylece stresini azaltıp odaklanmana katkı sağlayacaksın.", "Sabah kalkınca yatağını düzelteceksin, böylece gününe düzenli başlayacaksın.", "Sosyal medyada saatler geçirdiğini fark ettin, telefonu kapatıp bir kitap okumaya başlamalısın.", "Arkadaşın okulda üzgün göründüğünde, yanına gidip 'Ne oldu, konuşmak ister misin?' diye sormalısın.", "Canın Fast food yemek istediğinde, evdeki meyveleri kesip sağlıklı bir alternatif hazırlamalısın.", "Derste öğretmenin sorduğu soruya cevap veremediğinde, el kaldırıp dürüstçe 'Bilmiyorum, araştırabilir miyim?' demelisin.", "Dışarıda çok zaman geçirdiğini fark ettin, evde yapman gereken ödevler var. Gidip ödevlerine başlamalısın."]
+                },
+                en: {
+                    mainTitle: "The Chain of Responsibility", mainSubtitle: "A Social Harmony Game", infoTitle: "Information", startText: "Use the arrow keys to move, confront responsibility monsters, and grow by avoiding boxes!", startBtn: "Start Game", dialogTitle: "Confront Responsibility!", acceptBtn: "Accept Responsibility", runBtn: "Run Away", endTitleWin: "GAME OVER: YOU GREW!", endMessageWin: "Congratulations! You grew by accepting your responsibilities.", endTitleLose: "GAME OVER: YOU SHRANK!", endMessageLose: "Running away from responsibility made you shrink. You always have a chance to grow!", endTitleTie: "GAME OVER!", endMessageTie: "The game is over, and your size did not change.", endTitleBoxes: "GAME OVER: YOU HIT BOXES!", endMessageBoxes: (count) => `The game ended because you hit boxes ${count} times. You have no box hits left!`, restartBtn: "Play Again", controlsText: "Arrow Keys: Left/Right to move, Up to jump", growthText: "Character Growth: 👑 Character Shrinkage: 💧", pauseBtn: "Pause", resumeBtn: "Resume", responsibilities: ["When you find a topic difficult in class, you should research additional resources and update your notes.", "When plastic waste accumulates at home, you should collect it and put it in the recycling bin.", "By consciously choosing your diet, you will make healthy choices and maintain your long-term energy.", "By improving your time management, you will plan your daily routines, thus reducing stress and contributing to your focus.", "When you wake up in the morning, you will make your bed to start your day in an orderly fashion.", "You've noticed you're spending too much time outside and have homework to do at home. You should go and start your homework.", "When your friend looks sad at school, you should go to them and ask, 'What's wrong, do you want to talk?'", "When you crave fast food, you should cut some fruit at home and prepare a healthy alternative.", "When you don't know the answer to a question your teacher asks in class, you should raise your hand and honestly say, 'I don't know, may I research it?'"]
+                },
+                fr: {
+                    mainTitle: "La Chaîne de Responsabilité", mainSubtitle: "Un Jeu d'Harmonie Sociale", infoTitle: "Informations", startText: "Utilisez les touches fléchées pour avancer, affrontez les monstres de la responsabilité et grandissez en évitant les boîtes !", startBtn: "Démarrer le Jeu", dialogTitle: "Affrontez la Responsabilité !", acceptBtn: "Accepter la Responsabilité", runBtn: "Fuir", endTitleWin: "FIN DU JEU : VOUS AVEZ GRANDI !", endMessageWin: "Félicitations ! Vous avez grandi en acceptant vos responsabilités.", endTitleLose: "FIN DU JEU : VOUS AVEZ RÉTRÉCI !", endMessageLose: "Fuir la responsabilité vous a fait rétrécir. Vous avez toujours une chance de grandir !", endTitleTie: "FIN DU JEU !", endMessageTie: "Le jeu est terminé, et votre taille n'a pas changé.", endTitleBoxes: "FIN DU JEU : VOUS AVEZ FRAPPÉ DES BOÎTES !", endMessageBoxes: (count) => `Le jeu est terminé car vous avez frappé les boîtes ${count} fois. Vous n'avez plus de coups de boîte !`, restartBtn: "Rejouer", controlsText: "Touches fléchées : Gauche/Droite pour se déplacer, Haut pour sauter", growthText: "Croissance du Personnage : 👑 Rétrécissement du Personnage : 💧", pauseBtn: "Pauzo", resumeBtn: "Continuer", responsibilities: ["Lorsque tu trouves un sujet difficile en classe, tu devrais chercher des ressources supplémentaires et mettre à jour tes notes.", "Lorsque les déchets plastiques s'accumulent à la maison, tu devrais les ramasser et les mettre dans la poubelle de recyclage.", "En faisant des choix alimentaires conscients, tu feras des choix sains et maintiendras ton énergie à long terme.", "En améliorant la gestion de ton temps, tu planifieras tes routines quotidiennes, réduisant ainsi le stress et contribuant à ta concentration.", "En te réveillant le matin, tu feras ton lit pour commencer ta journée de manière ordonnée.", "Tu as remarqué que tu passes trop de temps dehors et tu as des devoirs à faire à la maison. Tu devrais rentrer et commencer tes devoirs.", "Lorsque ton ami a l'air triste à l'école, tu devrais t'approcher de lui et lui demander : 'Qu'est-ce qui ne va pas, tu veux en parler ?'", "Lorsque tu as envie de manger du fast-food, tu devrais couper des fruits à la maison et préparer une alternative saine.", "Lorsque tu ne sais pas répondre à une question de ton professeur en classe, tu devrais lever la main et dire honnêtement : 'Nuk e di, a mund ta hulumtoj?'"]
+                },
+                es: {
+                    mainTitle: "La Cadena de Responsabilidad", mainSubtitle: "Un Juego de Armonía Social", infoTitle: "Información", startText: "Usa las teclas de flecha para moverte, enfrenta a los monstruos de la responsabilidad y crece evitando las cajas!", startBtn: "Iniciar Juego", dialogTitle: "¡Enfrenta la Responsabilidad!", acceptBtn: "Aceptar Responsabilidad", runBtn: "Huir", endTitleWin: "FIN DEL JUEGO: ¡CRECISTE!", endMessageWin: "¡Felicidades! Creciste al aceptar tus responsabilidades.", endTitleLose: "FIN DEL JUEGO: ¡ENCOGISTE!", endMessageLose: "Huir de la responsabilidad te hizo encoger. ¡Siempre tienes la oportunidad de crecer!", endTitleTie: "¡FIN DEL JUEGO!", endMessageTie: "El juego ha terminado, y tu tamaño no cambió.", endTitleBoxes: "FIN DEL JUEGO: ¡GOLPEASTE CAJAS!", endMessageBoxes: (count) => `El juego terminó porque golpeaste las cajas ${count} veces. ¡No te quedan golpes de caja!`, restartBtn: "Jugar de Nuevo", controlsText: "Teclas de Flecha: Izquierda/Derecha para mover, Arriba para saltar", growthText: "Crecimiento del Personaje: 👑 Encogimiento del Personaje: 💧", pauseBtn: "Pausa", resumeBtn: "Reanudar", responsibilities: ["Cuando notes que te cuesta un tema en clase, debes buscar recursos adicionales y actualizar tus notas.", "Cuando se acumulen residuos plásticos en casa, debes recogerlos y depositarlos en el contenedor de reciclaje.", "Al ser consciente de tus preferencias alimenticias, harás elecciones saludables y mantendrás tu energía a largo plazo.", "Al mejorar tu gestión del tiempo, planificarás tus rutinas diarias, reduciendo así el estrés y contribuyendo a tu concentración.", "Cuando te despiertes por la mañana, harás tu cama para comenzar el día de manera ordenada.", "Te diste cuenta de que pasas demasiado tiempo afuera y tienes tareas que hacer en casa. Deberías ir y comenzar tus tareas.", "Cuando tu amigo parezca triste en la escuela, debes acercarte y preguntarle: '¿Qué te pasa, quieres hablar?'", "Cuando te apetezca comida rápida, deberías cortar fruta en casa y preparar una alternativa saludable.", "Cuando no sepas la respuesta a una pregunta que te haga el profesor en clase, debes levantar la mano y decir honestamente: 'No lo sé, ¿puedo investigarlo?'"]
+                },
+                ar: {
+                    mainTitle: "سلسلة المسؤولية", mainSubtitle: "لعبة الانسجام الاجتماعي", infoTitle: "معلومات", startText: "استخدم مفاتيح الأسهم للتحرك، واجه وحوش المسؤولية، واكبر بتجنب الصناديق!", startBtn: "ابدأ اللعبة", dialogTitle: "واجه المسؤولية!", acceptBtn: "تحمل المسؤولية", runBtn: "الهروب", endTitleWin: "انتهت اللعبة: لقد كبرت!", endMessageWin: "تهانينا! لقد كبرت بقبولك لمسؤولياتك.", endTitleLose: "انتهت اللعبة: لقد تقلصت!", endMessageLose: "الهروب من المسؤولية جعلك تتقلص. لديك دائمًا فرصة للنمو!", endTitleTie: "انتهت اللعبة!", endMessageTie: "انتهت اللعبة، ولم يتغير حجمك.", endTitleBoxes: "انتهت اللعبة: لقد اصطدمت بالصناديق!", endMessageBoxes: (count) => `انتهت اللعبة لأنك اصطدمت بالصناديق ${count} مرات. ليس لديك المزيد من اصطدامات الصناديق!`, restartBtn: "العب مرة أخرى", controlsText: "مفاتيح الأسهم: يسار/يمين للتحرك، أعلى للقفز", growthText: "نمو الشخصية: 👑 تقلص الشخصية: 💧", pauseBtn: "إيقاف مؤقت", resumeBtn: "استئناف", responsibilities: ["عندما تجد موضوعًا صعبًا في الفصل، يجب أن تبحث عن مصادر إضافية وتحدث ملاحظاتك.", "عندما تتراكم النفايات البلاستيكية في المنزل، يجب أن تجمعها وتضعها في سلة إعادة التدوير.", "من خلال اتخاذ خيارات غذائية واعية، ستقوم باختيارات صحية وتحافظ على طاقتك على المدى الطويل.", "من خلال تحسين إدارة وقتك، ستخطط لروتينك اليومي، مما يقلل من التوتر ويساهم في تركيزك.", "عندما تستيقظ في الصباح، ستقوم بترتيب سريرك لتبدأ يومك بشكل منظم.", "لقد لاحظت أنك تقضي الكثير من الوقت في الخارج ولديك واجبات مدرسية يجب القيام بها في المنزل. يجب أن تذهب وتبدأ في واجباتك المدرسية.", "عندما يبدو صديقك حزينًا في المدرسة، يجب أن تذهب إليه وتسأله: 'ما الخطب، هل تريد التحدث؟'", "عندما تشتهي الوجبات السريعة، يجب أن تقطع بعض الفاكهة في المنزل وتعد بديلاً صحيًا.", "عندما لا تعرف إجابة سؤال طرحه معلمك في الفصل، يجب أن ترفع يدك وتقول بصدق: 'لا أعرف, هل يمكنني البحث عنه?'"]
+                },
+                ky: {
+                    mainTitle: "Жоопкерчилик чынжыры", mainSubtitle: "Коомдук ынтымак оюну", infoTitle: "Маалымат", startText: "Кыймылдоо үчүн жебе баскычтарын колдонуңуз, жоопкерчилик желмогуздарына каршы туруңуз жана кутулардан качуу менен өсүңүз!", startBtn: "Оюнду баштоо", dialogTitle: "Жоопкерчиликке бетме-бет кел!", acceptBtn: "Жоопкерчиликти кабыл алуу", runBtn: "Качуу", endTitleWin: "ОЮН БҮТТҮ: СИЗ ӨСТҮҢҮЗ!", endMessageWin: "Куттуктайбыз! Сиз жоопкерчиликтериңизди кабыл алуу менен өстүңүз.", endTitleLose: "ОЮН БҮТТҮ: СИЗ КИЧИРЕЙДИҢИЗ!", endMessageLose: "Жоопкерчиликтен качуу сизди кичирейтти. Сизде ар дайым өсүүгө мүмкүнчүлүк бар!", endTitleTie: "ОЮН БҮТТҮ!", endMessageTie: "Оюн бүттү, жана сиздин өлчөмүңүз өзгөргөн жок.", endTitleBoxes: "ОЮН БҮТТҮ: СИЗ КУТУЛАРГА УРДУҢУЗ!", endMessageBoxes: (count) => `Оюн ${count} жолу кутуларга урганыңыздан улам бүттү. Сизде кутуларга уруу укугу калган жок!`, restartBtn: "Кайра ойноо", controlsText: "Жебе баскычтары: солго/оңго жылдыруу, өйдөгө секирүү", growthText: "Каармандын өсүшү: 👑 Каармандын кичирейиши: 💧", pauseBtn: "Тыным", resumeBtn: "Улантуу", responsibilities: ["Сабакта кыйынчылыкка туш болгон теманы байкасаңыз, кошумча булактарды изилдеп, жазууларыңызды жаңыртыңыз.", "Үйдө пластикалык таштандылар топтолгондо, аларды чогултуп кайра иштетүүчү кутуга салыңыз.", "Аң-сезимдүү тамактануу тандоолорун жасоо менен, дени сак тандоолорду жасайсыз жана узак мөөнөттүү энергияңызды сактайсыз.", "Убакытты башкарууну жакшыртуу менен, күнүмдүк тартибиңизди пландаштырып, стрессти азайтып, көңүл бурууңузга салым кошосуз.", "Эртең менен ойгонгондо, күнүңүздү иретүү менен баштоо үчүн жатаканаңызды жыйнайсыз.", "Сиз сыртта көп убакыт өткөрүп жатканыңызды байкадыңыз, үйдө аткарууга тийиш болгон үй тапшырмаларыңыз бар. Үй тапшырмаларыңызды баштоо үчүн барыңыз.", "Досуңуз мектепте капалуу көрүнгөндө, анын жанына барып: 'Эмне болду, сүйлөшүүнү каалайсыңбы?' деп сураңыз.", "Фаст-фуд жегиңиз келгенде, үйдө мөмө-жемиштерди кесип, дени сак альтернатива даярдаңыз.", "Мугалим классыңызда берген суроого жооп бере албасаңыз, колуңузду көтөрүп чынчылдык менен: 'Билбейм, изилдей аламбы?' деп айтыңыз."]
+                },
+                az: {
+                    mainTitle: "Məsuliyyət Zənciri", mainSubtitle: "İctimai Uyğunluq Oyunu", infoTitle: "Məlumat", startText: "Hərəkət etmək üçün ox düymələrini istifadə et, məsuliyyət canavarları ilə üzləş və qutulardan qaçaraq böyü!", startBtn: "Oyuna Başla", dialogTitle: "Məsuliyyətlə Üzləş!", acceptBtn: "Məsuliyyəti Qəbul Et", runBtn: "Qaçış", endTitleWin: "OYUN BİTTİ: BÖYÜDÜN!", endMessageWin: "Təbrik edirik! Məsuliyyətlərini qəbul edərək inkişaf etdin.", endTitleLose: "OYUN BİTTİ: KİÇİLDİN!", endMessageLose: "Məsuliyyətdən qaçmaq səni kiçiltdi. Hər zaman böyümək üçün bir şansın var!", endTitleTie: "OYUN BİTTİ!", endMessageTie: "Oyun bitdi və ölçün dəyişmədi.", endTitleBoxes: "OYUN BİTTİ: QUTULARA VURDUN!", endMessageBoxes: (count) => `Oyun ${count} dəfə qutulara vurduğun üçün bitdi. Qutulara vurma haqqın qalmadı!`, restartBtn: "Yenidən Oyna", controlsText: "Ox Düymələri: Sola/Sağa hərəkət, Yuxarıya tullanma", growthText: "Personajın Böyüməsi: 👑 Personajın Kiçilməsi: 💧", pauseBtn: "Dayandır", resumeBtn: "Davam et", responsibilities: ["Dərsdə çətinlik çəkdiyin bir mövzunu fərq etdikdə, əlavə mənbələr araşdırıb qeydlərini yeniləməlisən.", "Evdə plastik tullantılar toplandıqda, onları yığıb təkrar emal qutusuna qoymalısan.", "Qidalanma seçimlərini şüurlu hala gətirərək sağlam seçimlər edəcəksən, uzunmüddətli enerjini qoruyacaqsan.", "Vaxt idarəçiliyini inkişaf etdirərək gündəlik işlərini planlaşdıracaqsan, beləliklə stressini azaldıb diqqətini cəmləməyə kömək edəcəksən.", "Səhər yuxudan duranda yatağını yığışdıracaqsan ki, gününə nizamlı başlaya biləsən.", "Çöldə çox vaxt keçirdiyini fərq etdin, evdə etməli olduğun dərslər var. Gedib dərslərinə başlamalısan.", "Dostun məktəbdə kədərli göründükdə, onun yanına gedib 'Nə oldu, danışmaq istəyirsən?' deyə soruşmalısan.", "Fast food yemək istədikdə, evdəki meyvələri doğrayıb sağlam bir alternativ hazırlamalısan.", "Dərsdə müəllimin verdiyi suala cavab verə bilmədikdə, əl qaldırıb dürüstcə 'Bilmirəm, araşdıra bilərəmmi?' deməlisən."]
+                },
+                ps: {
+                    mainTitle: "د مسئولیت لړۍ", mainSubtitle: "د ټولنیزې همغږۍ لوبه", infoTitle: "معلومات", startText: "د حرکت کولو لپاره له تورو تڼیو څخه کار واخلئ، د مسئولیت له راکښو سره مخامخ شئ او د بکسونو څخه په تیښته وده وکړئ!", startBtn: "د لوبې پیل", dialogTitle: "د مسئولیت سره مخامخ شئ!", acceptBtn: "مسئولیت ومنئ", runBtn: "تيښته", endTitleWin: "لوبه پای ته ورسیده: تاسو وده وکړه!", endMessageWin: "مبارک شه! تاسو خپل مسئولیتونه په منلو سره وده وکړه.", endTitleLose: "لوبه پای ته ورسیده: تاسو کم شوئ!", endMessageLose: "د مسئولیت څخه په تیښته تاسو کم شوئ. تاسو تل د ودې لپاره چانس لرئ!", endTitleTie: "لوبه پای ته ورسیده!", endMessageTie: "لوبه پای ته ورسیده، او ستاسو اندازه بدله نه شوه.", endTitleBoxes: "لوبه پای ته ورسیده: تاسو بکسونه وویشتل!", endMessageBoxes: (count) => `لوبه پای ته ورسیده ځکه چې تاسو ${count} ځله بکسونه وویشتل. تاسو نور د بکس وهلو حق نه لرئ!`, restartBtn: "بیا یې لوبه وکړئ", controlsText: "له تورو تڼۍ: کیڼ/ښي حرکت، پورته ټوپ وهل", growthText: "د کرکټر وده: 👑 د کرکټر کمیدل: 💧", pauseBtn: "ځنډول", resumeBtn: "دوام ورکول", responsibilities: ["کله چې په درس کې په یوې موضوع کې ستونزه لرئ، تاسو باید اضافي سرچینې وڅیړئ او خپل نوټونه تازه کړئ.", "کله چې په کور کې پلاستیکي کثافات جمع شي، تاسو باید هغه راټول کړئ او د ریسایکل بکس کې واچوئ.", "د شعوري خوړو په غوره کولو سره، تاسو به صحي انتخابونه وکړئ او خپله اوږدمهاله انرژي وساتئ.", "د وخت په مدیریت کې د ښه والي سره، تاسو به خپل ورځني کارونه پلان کړئ, پدې توګه فشار کم کړئ او تمرکز ته مو مرسته وکړي.", "کله چې سهار له خوبه پاڅئ، تاسو به خپل بستر منظم کړئ ترڅو خپله ورځ په منظم ډول پیل کړئ.", "تاسو پام کوئ چې په بهر کې ډیر وخت تیروئ او په کور کې د ترسره کولو لپاره کورنی کار لرئ. تاسو باید لاړ شئ او خپل کورنی کار پیل کړئ.", "کله چې ستاسو ملګری په ښوونځي کې خفه ښکاري، تاسو باید ورته نږدې شئ او پوښتنه وکړئ، 'څه شوي، خبرې کول غواړي؟'", "کله چې تاسو فاسټ فوډ خوړل غواړئ, تاسو باید په کور کې میوې پرې کړئ او صحي بدیل چمتو کړئ.", "کله چې تاسو په ټولګي کې د ښوونکي د پوښتنې ځواب نه شئ ویلای، تاسو باید لاس پورته کړئ او په رښتینې توګه ووایئ، 'زه نه پوهیږم, څیړنه یې کولی شم?'"]
+                },
+                ru: {
+                    mainTitle: "Цепочка Ответственности", mainSubtitle: "Игра Социальной Гармонии", infoTitle: "Информация", startText: "Используйте клавиши со стрелками для движения, встречайтесь с монстрами ответственности и растите, избегая коробок!", startBtn: "Начать Игру", dialogTitle: "Столкнитесь с Ответственностью!", acceptBtn: "Принять Ответственность", runBtn: "Убежать", endTitleWin: "ИГРА ОКОНЧЕНА: ВЫ ВЫРОСЛИ!", endMessageWin: "Поздравляем! Вы выросли, принимая свои обязанности.", endTitleLose: "ИГРА ОКОНЧЕНА: ВЫ СЖАЛИСЬ!", endMessageLose: "Бегство от ответственности заставило вас сжаться. У вас всегда есть шанс вырасти!", endTitleTie: "ИГРА ОКОНЧЕНА!", endMessageTie: "Игра окончена, и ваш размер не изменился.", endTitleBoxes: "ИГРА ОКОНЧЕНА: ВЫ УДАРИЛИСЬ О КОРОБКИ!", endMessageBoxes: (count) => `Игра закончилась, потому что вы ударились о коробки ${count} раз. У вас не осталось ударов о коробки!`, restartBtn: "Играть Снова", controlsText: "Клавиши со стрелками: влево/вправо для движения, вверх для прыжка", growthText: "Рост Персонажа: 👑 Сжатие Персонажа: 💧", pauseBtn: "Пауза", resumeBtn: "Продолжить", responsibilities: ["Когда вы сталкиваетесь с трудной темой в классе, вам следует изучить дополнительные материалы и обновить свои заметки.", "Когда дома скапливаются пластиковые отходы, вам следует собрать их и положить в мусорный бак для переработки.", "Сознательно выбирая еду, вы будете делать здоровый выбор и поддерживать свою энергию в долгосрочной перспективе.", "Улучшая свое управление временем, вы будете планировать свои ежедневные дела, тем самым снижая стресс и улучшая концентрацию.", "Проснувшись утром, ты будешь заправлять свою кровать, чтобы начать свой день организованно.", "Вы заметили, что проводите слишком много времени на улице, и у вас есть домашние задания, которые нужно сделать дома. Вам следует пойти и начать делать уроки.", "Когда ваш друг выглядит грустным в школе, вам следует подойти к нему и спросить: 'Что случилось, хочешь поговорить?'", "Когда вам захочется фастфуда, вам следует нарезать фрукты дома и приготовить здоровую альтернативу.", "Когда вы не знаете ответ на вопрос, заданный учителем в классе, вам следует поднять руку и честно сказать: 'Я не знаю, могу ли я это исследовать?'"]
+                },
+                bs: {
+                    mainTitle: "Lanac Odgovornosti", mainSubtitle: "Igra Društvene Harmonije", infoTitle: "Informacije", startText: "Koristite tipke sa strelicama za kretanje, suočite se s čudovištima odgovornosti i rastite izbjegavajući kutije!", startBtn: "Počni Igru", dialogTitle: "Suoči se s Odgovornošću!", acceptBtn: "Prihvati Odgovornost", runBtn: "Bježi", endTitleWin: "KRAJ IGRE: PORASLI STE!", endMessageWin: "Čestitamo! Porasli ste prihvatajući svoje odgovornosti.", endTitleLose: "KRAJ IGRE: SMANJILI STE SE!", endMessageLose: "Bježanje od odgovornosti vas je smanjilo. Uvijek imate šansu da rastete!", endTitleTie: "KRAJ IGRE!", endMessageTie: "Igra je završena, i vaša veličina se nije promijenila.", endTitleBoxes: "KRAJ IGRE: UDARILI STE U KUTIJE!", endMessageBoxes: (count) => `Igra je završena jer ste ${count} puta udarili u kutije. Nemate više udaraca o kutije!`, restartBtn: "Igraj Ponovo", controlsText: "Tipke sa strelicama: lijevo/desno za kretanje, gore za skakanje", growthText: "Rast lika: 👑 Smanjivanje lika: 💧", pauseBtn: "Pauziraj", resumeBtn: "Nastavi", responsibilities: ["Kada naiđete na temu koja vam je teška u razredu, trebali biste potražiti dodatne izvore i ažurirati svoje bilješke.", "Kada se plastični otpad nakupi kod kuće, trebali biste ga prikupiti i staviti u kantu za reciklažu.", "Svjesnim odabirom prehrane, pravićete zdrave izbore i održavati svoju dugoročnu energiju.", "Poboljšavanjem upravljanja vremenom, planiraćete svoje dnevne rutine, čime ćete smanjiti stres i doprinijeti svojoj koncentraciji.", "Kada se probudite ujutro, pospremićete svoj krevet kako biste dan započeli uredno.", "Primijetili ste da provodite previše vremena vani, a imate domaće zadaće koje trebate uraditi. Trebali biste ići i početi raditi zadaću.", "Kada vaš prijatelj izgleda tužno u razredu, trebali biste mu prići i pitati ga: 'Šta se desilo, želiš li razgovarati?'", "Kada vam se jede brza hrana, trebali biste kod kuće narezati voće i pripremiti zdravu alternativu.", "Kada ne znate odgovor na pitanje koje vam postavi nastavnik u razredu, trebali biste podići ruku i iskreno reći: 'Ne znam, mogu li to istražiti?'"]
+                },
+                ka: {
+                    mainTitle: "პასუხისმგებლობის ჯაჭვი", mainSubtitle: "სოციალური ჰარმონიის თამაში", infoTitle: "ინფორმაცია", startText: "გამოიყენეთ ისრის ღილაკები გადასაადგილებლად, დაუპირისპირდით პასუხისმგებლობის მონსტრებს და გაიზარდეთ ყუთების თავიდან აცილებით!", startBtn: "დაიწყეთ თამაში", dialogTitle: "გაუმკლავდით პასუხისმგებლობას!", acceptBtn: "მიიღეთ პასუხისმგებლობა", runBtn: "გაქცევა", endTitleWin: "თამაში დასრულდა: თქვენ გაიზარდეთ!", endMessageWin: "გილოცავთ! თქვენ გაიზარდეთ პასუხისმგებლობების მიღებით.", endTitleLose: "თამაში დასრულდა: თქვენ დაპატარავდით!", endMessageLose: "პასუხისმგებლობისგან გაქცევამ დაგაპატარავათ. თქვენ ყოველთვის გაქვთ შანსი, რომ გაიზარდოთ!", endTitleTie: "თამაში დასრულდა!", endMessageTie: "თამაში დასრულდა, და თქვენი ზომა არ შეცვლილა.", endTitleBoxes: "თამაში დასრულდა: თქვენ დაარტყით ყუთებს!", endMessageBoxes: (count) => `თამაში დასრულდა, რადგან ${count} ჯერ დაარტყით ყუთებს. თქვენ აღარ გაქვთ ყუთებზე დარტყმის უფლება!`, restartBtn: "ითამაშეთ ხელახლა", controlsText: "ისრის ღილაკები: მარცხნივ/მარჯვნივ გადაადგილება, ზევით ნახტომი", growthText: "პერსონაჟის ზრდა: 👑 პერსონაჟის დაპატარავება: 💧", pauseBtn: "პაუზა", resumeBtn: "განახლება", responsibilities: ["როდესაც კლასში თემა გიჭირთ, დამატებითი წყაროები უნდა მოიძიოთ და განაახლოთ თქვენი ჩანაწერები.", "როდესაც სახლში პლასტმასის ნარჩენები გროვდება, უნდა შეაგროვოთ ისინი და მოათავსოთ გადამუშავების ყუთში.", "კვების შეგნებული არჩევით, თქვენ გააკეთებთ ჯანსაღ არჩევანს და შეინარჩუნებთ თქვენს ენერგიას გრძელვადიან პერსპექტივაში.", "თქვენი დროის მართვის გაუმჯობესებით, დაგეგმავთ თქვენს ყოველდღიურ რუტინებს, რითაც შეამცირებთ სტრესს და ხელს შეუწყობთ თქვენს კონცენტრაციას.", "დილით გაღვიძებისას დაალაგებთ თქვენს საწოლს, რათა თქვენი დღე მოწესრიგებულად დაიწყოთ.", "შენიშნეთ, რომ ძალიან ბევრ დროს ატარებთ გარეთ, და სახლში გასაკეთებელი საშინაო დავალებები გაქვთ. უნდა წახვიდეთ და დაიწყოთ თქვენი საშინაო დავალება.", "როდესაც თქვენი მეგობარი სკოლაში მოწყენილი გეჩვენებათ, უნდა მიხვიდეთ მასთან და ჰკითხოთ: 'რა მოხდა, გინდა ვისაუბროთ?'", "როდესაც სწრაფი კვების სურვილი გექნებათ, უნდა დაჭრათ ხილი სახლში და მოამზადოთ ჯანსაღი ალტერნატივა.", "როდესაც არ იცით პასუხი კლასში მასწავლებლის მიერ დასმულ შეკითხვაზე, უნდა აწიოთ ხელი და გულწრფელად თქვათ: 'არ ვიცი, შეიძლება მოვძებნო?'"]
+                },
+                sq: {
+                    mainTitle: "Zinxhiri i Përgjegjësisë", mainSubtitle: "Një Lojë e Harmonisë Sociale", infoTitle: "Informacion", startText: "Përdorni tastet e shigjetave për t'u lëvizur, përballuni me përbindëshat e përgjegjësisë dhe rrituni duke shmangur kutitë!", startBtn: "Nis lojën", dialogTitle: "Përballu me Përgjegjësinë!", acceptBtn: "Prano Përgjegjësinë", runBtn: "Ik", endTitleWin: "LOJA MBAROI: JU U RRITËT!", endMessageWin: "Urime! U rritët duke pranuar përgjegjësitë tuaja.", endTitleLose: "LOJA MBAROI: JU U ZVOGËLUAT!", endMessageLose: "Ikja nga përgjegjësia ju bëri të zvogëloheni. Gjithmonë keni një shans për t'u rritur!", endTitleTie: "LOJA MBAROI!", endMessageTie: "Loja ka mbaruar, dhe madhësia juaj nuk ndryshoi.", endTitleBoxes: "LOJA MBAROI: GODITËT KUTITË!", endMessageBoxes: (count) => `Loja mbaroi sepse goditët kutitë ${count} herë. Ju nuk keni më goditje kutie!`, restartBtn: "Luaj Sërish", controlsText: "Tastet e shigjetave: Majtas/Djathtas për të lëvizur, Lart për të kërcyer", growthText: "Rritja e personazhit: 👑 Zvogëlimi i personazhit: 💧", pauseBtn: "Pauzo", resumeBtn: "Vazhdo", responsibilities: ["Kur hasni një temë të vështirë në klasë, duhet të kërkoni burime shtesë dhe të përditësoni shënimet tuaja.", "Kur plehrat plastike grumbullohen në shtëpi, duhet t'i mblidhni dhe t'i vendosni në koshin e riciklimit.", "Duke bërë zgjedhje të vetëdijshme ushqimore, do të bëni zgjedhje të shëndetshme dhe do të ruani energjinë tuaj afatgjatë.", "Duke përmirësuar menaxhimin tuaj të kohës, do të planifikoni rutinat tuaja ditore, duke reduktuar stresin dhe duke kontribuar në fokusin tuaj.", "Kur të zgjoheni në mëngjes, do të rregulloni shtratin tuaj për të filluar ditën tuaj të organizuar.", "Keni vënë re se kaloni shumë kohë jashtë dhe keni detyra shtëpie për të bërë në shtëpi. Duhet të shkoni dhe të filloni detyrat tuaja.", "Kur miku juaj duket i trishtuar në shkollë, duhet të shkoni pranë tij dhe të pyesni: 'Çfarë ka, dëshiron të flasësh?'", "Kur ju hahet ushqim i shpejtë, duhet të prisni fruta në shtëpi dhe të përgatisni një alternativë të shëndetshme.", "Kur nuk dini përgjigjen e një pyetjeje që ju bën mësuesi në klasë, duhet të ngrini dorën dhe të thoni sinqerisht: 'Nuk e di, a mund ta hulumtoj?'"]
+                },
+                hu: {
+                    mainTitle: "A Felelősség Lánca", mainSubtitle: "Egy Társadalmi Harmónia Játék", infoTitle: "Információ", startText: "Használja a nyílbillentyűket a mozgáshoz, nézzen szembe a felelősség szörnyeivel, és nőjön a dobozok elkerülésével!", startBtn: "Játék indítása", dialogTitle: "Nézzen Szemben a Felelősséggel!", acceptBtn: "Felelősség Elfogadása", runBtn: "Elmenekül", endTitleWin: "VÉGE A JÁTÉKNAK: NŐTTÉL!", endMessageWin: "Gratulálunk! Nőttél, mert elfogadtad a felelősségedet.", endTitleLose: "VÉGE A JÁTÉKNAK: ÖSSZEMENETÉL!", endMessageLose: "A felelősség elől való menekülés összezsugorított. Mindig van esélyed a növekedésre!", endTitleTie: "VÉGE A JÁTÉKNAK!", endMessageTie: "A játéknak vége, és a méreted nem változott.", endTitleBoxes: "VÉGE A JÁTÉKNAK: DOBOZOKBA ÜTKÖZTÉL!", endMessageBoxes: (count) => `A játéknak azért van vége, mert ${count} alkalommal ütköztél dobozokba. Nincs több dobozütésed!`, restartBtn: "Újra játszik", controlsText: "Nyílbillentyűk: balra/jobbra mozgatás, felfelé ugrás", growthText: "Karakter növekedése: 👑 Karakter zsugorodása: 💧", pauseBtn: "Szüneteltet", resumeBtn: "Folytat", responsibilities: ["Amikor egy nehéz témát észlel az órán, kutasson további forrásokat és frissítse a jegyzeteit.", "Amikor a műanyag hulladék felhalmozódik otthon, gyűjtse össze és tegye a szelektív kukába.", "Tudatos táplálkozási döntésekkel egészséges választásokat fog tenni, és megőrzi hosszú távú energiáját.", "Az időgazdálkodás javításával megtervezi a napi rutinjait, ezáltal csökkentve a stresszt és hozzájárulva a koncentrációjához.", "Reggel ébredés után be fogja ágyazni az ágyát, hogy rendben kezdje a napját.", "Észrevetted, hogy túl sok időt töltesz a szabadban, és van otthoni házi feladatod. El kellene menned, és el kellene kezdened a házi feladatodat.", "Amikor a barátja szomorúnak tűnik az iskolában, menjen oda hozzá, és kérdezze meg: 'Mi történt, szeretnél róla beszélni?'", "Amikor gyorsételt kíván, szeleteljen gyümölcsöt otthon, és készítsen egy egészséges alternatívát.", "Amikor nem tudja a választ a tanár kérdésére az órán, emelje fel a kezét, és mondja el őszintén: 'Nem tudom, utánanézhetek?'"]
+                }
+            };
+
+            const maxMonsters = 10;
+            const maxBoxHits = 3;
+
+            let monster = {
+                x: 0, y: groundY - 50, width: 50, height: 50, speed: 1, responsibility: "", isActive: false, hasPassed: false
+            };
+            let player = {
+                x: 50, y: groundY - 50, width: 50, height: 50, velocityX: 0, velocityY: 0, isJumping: false, initialSize: 50, isDecaying: false
+            };
+
+            // Tone.js sound effects
+            const successSynth = new Tone.Synth({ oscillator: { type: "square" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.2, release: 1 }}).toDestination();
+            const failSynth = new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.2, release: 0.5 }}).toDestination();
+            const jumpSynth = new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.001, decay: 0.1, sustain: 0.1, release: 0.2 }}).toDestination();
+            const breakSynth = new Tone.Synth({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 0.5 }}).toDestination();
+            
+            // Helper function to shuffle an array
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+            
+            // Updates all UI text based on the selected language
+            function updateLanguage(lang) {
+                const translation = texts[lang];
+                if (!translation) return;
+
+                document.getElementById('main-title').textContent = translation.mainTitle;
+                document.getElementById('main-subtitle').textContent = translation.mainSubtitle;
+                document.getElementById('info-title').textContent = translation.infoTitle;
+                document.getElementById('start-text').textContent = translation.startText;
+                document.getElementById('start-button').textContent = translation.startBtn;
+                document.getElementById('dialog-title').textContent = translation.dialogTitle;
+                document.getElementById('accept-button').textContent = translation.acceptBtn;
+                document.getElementById('run-button').textContent = translation.runBtn;
+                document.getElementById('end-title').textContent = translation.endTitleWin; // Placeholder, will be updated on game end
+                document.getElementById('restart-button').textContent = translation.restartBtn;
+                document.getElementById('controls-text').textContent = translation.controlsText;
+                document.getElementById('growth-text').textContent = translation.growthText;
+                pauseButton.textContent = gameState.isPaused ? translation.resumeBtn : translation.pauseBtn;
+                
+                currentResponsibilities = [...translation.responsibilities];
+                shuffleArray(currentResponsibilities);
+            }
+
+            // Updates the canvas background color based on game state
+            function updateBackgroundState(state) {
+                gameState.backgroundState = state;
+                if (state === 'vibrant') {
+                    gameContainer.style.backgroundColor = '#A3D4EB';
+                } else {
+                    gameContainer.style.backgroundColor = '#7a8c99';
+                }
+            }
+
+            // Draws the responsibility chain UI
+            function updateResponsibilityChainUI() {
+                responsibilityChainUI.innerHTML = '';
+                for(let i = 0; i < maxMonsters; i++) {
+                    const icon = document.createElement('span');
+                    icon.className = 'text-xl md:text-2xl';
+                    if (gameState.responsibilitiesTaken[i] === 'accepted') {
+                        icon.textContent = '🟢🔗';
+                        icon.style.animation = 'pulse 1s infinite';
+                    } else if (gameState.responsibilitiesTaken[i] === 'run') {
+                        icon.textContent = '🔴🔗';
+                    } else {
+                        icon.textContent = '⚪🔗';
+                    }
+                    responsibilityChainUI.appendChild(icon);
+                }
+            }
+            
+            // Draws simple stylized clouds
+            function drawCloud(x, y, radius) {
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.arc(x + radius, y, radius, 0, Math.PI * 2);
+                ctx.arc(x + radius * 2, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draws simple stylized trees
+            function drawTree(x, y, height, width) {
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + width, y);
+                ctx.lineTo(x + width / 2, y - height);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            // Draws simple stylized flowers
+            function drawFlower(x, y, size) {
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Initializes the background elements
+            function initBackground() {
+                clouds = [];
+                trees = [];
+                flowers = [];
+                for (let i = 0; i < 10; i++) {
+                    clouds.push({ x: Math.random() * canvas.width * 10, y: Math.random() * canvas.height / 3, radius: 20 + Math.random() * 30 });
+                }
+                for (let i = 0; i < 50; i++) {
+                    trees.push({ x: Math.random() * canvas.width * 10, y: groundY, height: 50 + Math.random() * 50, width: 10 + Math.random() * 10 });
+                }
+                for (let i = 0; i < 20; i++) {
+                    flowers.push({ x: Math.random() * canvas.width * 10, y: groundY - 10, size: 5 + Math.random() * 10 });
+                }
+            }
+
+            // Draws the entire background
+            function drawBackground() {
+                let skyColor = gameState.backgroundState === 'vibrant' ? "#A3D4EB" : "#7a8c99";
+                ctx.fillStyle = skyColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                if (gameState.backgroundState === 'vibrant') {
+                    ctx.fillStyle = "yellow";
+                    ctx.beginPath();
+                    ctx.arc(100 - gameState.scrollOffset * 0.05, 100, 50, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                let cloudColor = gameState.backgroundState === 'vibrant' ? "#F0F0F0" : "#A9A9A9";
+                ctx.fillStyle = cloudColor;
+                clouds.forEach(cloud => {
+                    drawCloud(cloud.x - gameState.scrollOffset * 0.1, cloud.y, cloud.radius);
+                });
+                
+                let treeColor = gameState.backgroundState === 'vibrant' ? "#006400" : "#5C4033";
+                ctx.fillStyle = treeColor;
+                trees.forEach(tree => {
+                    drawTree(tree.x - gameState.scrollOffset, tree.y, tree.height, tree.width);
+                });
+
+                if (gameState.backgroundState === 'vibrant') {
+                    flowers.forEach(flower => {
+                        ctx.fillStyle = "pink";
+                        drawFlower(flower.x - gameState.scrollOffset, flower.y, flower.size);
+                    });
+                }
+
+                let groundColor = gameState.backgroundState === 'vibrant' ? "#228B22" : "#4A5459";
+                ctx.fillStyle = groundColor;
+                ctx.fillRect(0, groundY, canvas.width, 50);
+            }
+
+            // Player drawing function
+            player.draw = function() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                let bodyColor = this.isDecaying ? "#5C4033" : "#D6604D";
+                let suitColor = this.isDecaying ? "#36454F" : "#40E0D0";
+                let capeColor = this.isDecaying ? "#5C4033" : "#40E0D0";
+                let maskColor = this.isDecaying ? "#5C4033" : "#40E0D0";
+                let beltColor = this.isDecaying ? "#9B870C" : "#FFD700";
+
+                ctx.fillStyle = capeColor;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(this.width, 0);
+                ctx.lineTo(this.width / 2, this.height);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = suitColor;
+                ctx.fillRect(0, 0, this.width, this.height * 0.8);
+
+                ctx.fillStyle = maskColor;
+                ctx.beginPath();
+                ctx.moveTo(this.width * 0.2, -this.height * 0.2);
+                ctx.lineTo(this.width * 0.8, -this.height * 0.2);
+                ctx.lineTo(this.width / 2, -this.height * 0.5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(this.width / 2, this.height * 0.1, this.width / 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = bodyColor;
+                ctx.beginPath();
+                ctx.arc(this.width / 2, this.height * 0.15, this.width / 4, 0, Math.PI);
+                ctx.fill();
+
+                ctx.fillStyle = "#000000";
+                ctx.beginPath();
+                ctx.arc(this.width * 0.4, this.height * 0.1, this.width * 0.05, 0, Math.PI * 2);
+                ctx.arc(this.width * 0.6, this.height * 0.1, this.width * 0.05, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = beltColor;
+                ctx.fillRect(this.width * 0.1, this.height * 0.5, this.width * 0.8, this.height * 0.05);
+
+                ctx.fillStyle = maskColor;
+                ctx.fillRect(this.width * 0.2, this.height * 0.8, this.width * 0.2, this.height * 0.2);
+                ctx.fillRect(this.width * 0.6, this.height * 0.8, this.width * 0.2, this.height * 0.2);
+                
+                ctx.restore();
+            };
+
+            // Monster drawing function
+            monster.draw = function() {
+                ctx.fillStyle = "#FF4E50";
+                ctx.save();
+                ctx.translate(this.x - gameState.scrollOffset, this.y);
+                // Body
+                ctx.beginPath();
+                ctx.arc(this.width / 2, this.height / 2, this.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+                // Legs
+                ctx.fillStyle = "#6B6B6B";
+                ctx.fillRect(this.width * 0.1, this.height * 0.8, this.width * 0.2, this.height * 0.2);
+                ctx.fillRect(this.width * 0.7, this.height * 0.8, this.width * 0.2, this.height * 0.2);
+                ctx.restore();
+            };
+            
+            // Creates a new obstacle object
+            function createObstacle(x, y) {
+                return {
+                    x: x, y: y, width: 40, height: 40,
+                    draw: function() {
+                        ctx.fillStyle = "#FFC300";
+                        ctx.fillRect(this.x - gameState.scrollOffset, this.y, this.width, this.height);
+                        ctx.fillStyle = "black";
+                        ctx.font = "24px Inter";
+                        ctx.textAlign = "center";
+                        ctx.fillText("?", this.x - gameState.scrollOffset + this.width / 2, this.y + this.height * 0.7);
+                    }
+                };
+            }
+            
+            // Event listeners for keyboard input
+            document.addEventListener('keydown', (e) => {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    e.preventDefault();
+                }
+                if (gameState.isDialogActive || gameState.isGameOver || gameState.isPaused) return;
+                gameState.keys[e.key] = true;
+            });
+            document.addEventListener('keyup', (e) => {
+                gameState.keys[e.key] = false;
+            });
+
+            // Shows the responsibility dialog
+            function showDialog() {
+                gameState.isDialogActive = true;
+                dialogOverlay.style.display = 'flex';
+                responsibilityText.textContent = monster.responsibility;
+            }
+
+            // Spawns a new responsibility monster
+            function spawnMonster() {
+                if (gameState.currentMonsterIndex >= maxMonsters) {
+                    endGame();
+                    return;
+                }
+                monster.x = gameState.scrollOffset + canvas.width + Math.random() * 200;
+                monster.y = groundY - 50;
+                monster.responsibility = currentResponsibilities[gameState.currentMonsterIndex];
+                monster.speed = gameState.gameSpeed;
+                monster.isActive = true;
+                monster.hasPassed = false;
+                gameState.isSpawning = false;
+            }
+
+            // Spawns random box obstacles
+            function spawnObstacles() {
+                if (!gameState.isGameOver && !gameState.isPaused) {
+                    const x = gameState.scrollOffset + canvas.width + Math.random() * 400;
+                    const y = Math.random() > 0.5 ? groundY - 40 : groundY - 120 - (Math.random() * 50);
+                    obstacles.push(createObstacle(x, y));
+                    setTimeout(spawnObstacles, 5000 + Math.random() * 5000);
+                }
+            }
+            
+            // Basic AABB collision detection
+            function checkCollision(obj1, obj2) {
+                return obj1.x < obj2.x + obj2.width &&
+                        obj1.x + obj1.width > obj2.x &&
+                        obj1.y < obj2.y + obj2.height &&
+                        obj1.y + obj1.height > obj2.y;
+            }
+
+            // Updates player position and handles physics
+            function updatePlayer() {
+                const sizeFactor = player.height / player.initialSize;
+                player.velocityX = 0;
+                if (gameState.keys['ArrowRight']) {
+                    player.velocityX = 4 * sizeFactor;
+                }
+                if (gameState.keys['ArrowLeft']) {
+                    player.velocityX = -4 * sizeFactor;
+                }
+                
+                const jumpForce = -15 * sizeFactor * gameState.jumpModifier;
+                if (gameState.keys['ArrowUp'] && !player.isJumping) {
+                    jumpSynth.triggerAttackRelease("G4", "8n");
+                    player.isJumping = true;
+                    player.velocityY = jumpForce;
+                }
+
+                player.x += player.velocityX;
+                player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+                player.y += player.velocityY;
+                player.velocityY += 0.8;
+                
+                // Collision with obstacles
+                let onObstacle = false;
+                for (let i = 0; i < obstacles.length; i++) {
+                    const obstacle = obstacles[i];
+                    const obstacleScreen = { x: obstacle.x - gameState.scrollOffset, y: obstacle.y, width: obstacle.width, height: obstacle.height };
+                    if (checkCollision(player, obstacleScreen)) {
+                        if (player.velocityY >= 0 && player.y + player.height < obstacleScreen.y + obstacle.height / 2) {
+                            player.y = obstacleScreen.y - player.height;
+                            player.isJumping = false;
+                            player.velocityY = 0;
+                            onObstacle = true;
+                        } else {
+                            gameState.boxHitCount++;
+                            player.width *= 0.9;
+                            player.height *= 0.9;
+                            player.y = groundY - player.height;
+                            obstacles.splice(i, 1);
+                            i--;
+                            if (gameState.boxHitCount >= maxBoxHits) {
+                                endGame('kutular');
+                            }
+                        }
+                    }
+                }
+                
+                // Collision with ground
+                if (player.y + player.height > groundY && !onObstacle) {
+                    player.y = groundY - player.height;
+                    player.isJumping = false;
+                    player.velocityY = 0;
+                }
+            }
+
+            // Main game logic loop
+            function updateGame() {
+                if (gameState.isGameOver || gameState.isDialogActive || gameState.isPaused) return;
+
+                gameState.scrollOffset += gameState.gameSpeed;
+                updatePlayer();
+                
+                const monsterScreenX = monster.x - gameState.scrollOffset;
+
+                obstacles = obstacles.filter(obstacle => obstacle.x - gameState.scrollOffset + obstacle.width > 0);
+                
+                if (monster.isActive) {
+                    const monsterScreen = { x: monsterScreenX, y: monster.y, width: monster.width, height: monster.height };
+                    if (checkCollision(player, monsterScreen) && !monster.hasPassed) {
+                        showDialog();
+                        monster.hasPassed = true;
+                    }
+                    
+                    if (monsterScreenX + monster.width < 0) {
+                        if (!monster.hasPassed) {
+                            failSynth.triggerAttackRelease("C2", "8n");
+                            player.width *= 0.95;
+                            player.height *= 0.95;
+                            player.y = groundY - player.height;
+                            player.isDecaying = true;
+                            gameState.responsibilitiesTaken.push('run');
+                            updateResponsibilityChainUI();
+                        }
+                        monster.isActive = false;
+                        gameState.currentMonsterIndex++;
+                    }
+                }
+
+                if (!monster.isActive && !gameState.isSpawning) {
+                    gameState.isSpawning = true;
+                    setTimeout(spawnMonster, 1000);
+                }
+            }
+
+            // Main drawing loop
+            function draw() {
+                drawBackground();
+                
+                player.draw();
+                if (monster.isActive) {
+                    monster.draw();
+                }
+
+                obstacles.forEach(obstacle => {
+                    obstacle.draw();
+                });
+                
+                if (!gameState.isGameOver) {
+                    requestAnimationFrame(draw);
+                    updateGame();
+                }
+            }
+            
+            // Resizes the canvas to fit the window
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                player.y = canvas.height - 50 - player.height;
+            }
+
+            // Toggles the game pause state
+            function togglePause() {
+                gameState.isPaused = !gameState.isPaused;
+                if (gameState.isPaused) {
+                    pauseButton.textContent = texts[languageSelector.value].resumeBtn;
+                } else {
+                    pauseButton.textContent = texts[languageSelector.value].pauseBtn;
+                    requestAnimationFrame(draw);
+                    spawnObstacles();
+                }
+            }
+
+            // Resets and starts the game
+            function startGame() {
+                Tone.start();
+
+                gameState.isGameOver = false;
+                gameState.isDialogActive = false;
+                gameState.isPaused = false;
+                gameState.currentMonsterIndex = 0;
+                gameState.boxHitCount = 0;
+                gameState.gameSpeed = 1;
+                gameState.jumpModifier = 1;
+                player.width = player.initialSize;
+                player.height = player.initialSize;
+                player.x = 50;
+                player.y = groundY - player.height;
+                player.isDecaying = false;
+                gameState.responsibilitiesTaken = [];
+                startScreen.style.display = 'none';
+                endScreen.style.display = 'none';
+                dialogOverlay.style.display = 'none';
+                pauseButton.style.display = 'block';
+                gameState.keys = {};
+                gameState.scrollOffset = 0;
+                obstacles = [];
+                initBackground();
+                updateBackgroundState('vibrant');
+                spawnMonster();
+                spawnObstacles();
+                updateResponsibilityChainUI();
+                draw();
+            }
+
+            // Ends the game and displays the result
+            function endGame(reason) {
+                gameState.isGameOver = true;
+                pauseButton.style.display = 'none';
+                endScreen.style.display = 'flex';
+                
+                const lang = languageSelector.value;
+                const translation = texts[lang];
+
+                if (reason === 'kutular') {
+                    endTitle.textContent = translation.endTitleBoxes;
+                    endTitle.classList.add('text-[#FF4E50]');
+                    endMessage.textContent = translation.endMessageBoxes(gameState.boxHitCount);
+                } else {
+                    let finalSize = (player.width + player.height) / 2;
+                    let originalSize = player.initialSize;
+            
+                    if (finalSize > originalSize) {
+                        endTitle.textContent = translation.endTitleWin;
+                        endTitle.classList.add('text-[#F9D423]');
+                        endMessage.textContent = translation.endMessageWin;
+                    } else if (finalSize < originalSize) {
+                        endTitle.textContent = translation.endTitleLose;
+                        endTitle.classList.add('text-[#FF4E50]');
+                        endMessage.textContent = translation.endMessageLose;
+                    } else {
+                        endTitle.textContent = translation.endTitleTie;
+                        endTitle.classList.add('text-[#FC913A]');
+                        endMessage.textContent = translation.endMessageTie;
+                    }
+                }
+            }
+
+            // Event listeners for UI buttons
+            acceptButton.addEventListener('click', () => {
+                if (!gameState.isDialogActive) return;
+                successSynth.triggerAttackRelease("C4", "8n");
+                gameState.isDialogActive = false;
+                dialogOverlay.style.display = 'none';
+                player.width *= 1.05;
+                player.height *= 1.05;
+                player.y = groundY - player.height;
+                player.isDecaying = false;
+                updateBackgroundState('vibrant');
+                gameState.gameSpeed += 0.2;
+                gameState.jumpModifier *= 1.05;
+                gameState.responsibilitiesTaken.push('accepted');
+                updateResponsibilityChainUI();
+                gameState.currentMonsterIndex++;
+                monster.isActive = false;
+            });
+
+            runButton.addEventListener('click', () => {
+                if (!gameState.isDialogActive) return;
+                breakSynth.triggerAttackRelease("C1", "8n");
+                gameState.isDialogActive = false;
+                dialogOverlay.style.display = 'none';
+                player.width *= 0.95;
+                player.height *= 0.95;
+                player.y = groundY - player.height;
+                player.isDecaying = true;
+                updateBackgroundState('decayed');
+                gameState.gameSpeed += 0.2;
+                gameState.jumpModifier *= 0.95;
+                gameState.responsibilitiesTaken.push('run');
+                updateResponsibilityChainUI();
+                gameState.currentMonsterIndex++;
+                monster.isActive = false;
+            });
+            
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', startGame);
+            languageSelector.addEventListener('change', (e) => {
+                updateLanguage(e.target.value);
+            });
+            pauseButton.addEventListener('click', togglePause);
+
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Initial setup
+            updateLanguage(languageSelector.value);
+            pauseButton.style.display = 'none';
+            initBackground();
+            draw();
+        };
+    </script>
+
+</body>
+</html>
